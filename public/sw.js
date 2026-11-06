@@ -1,7 +1,7 @@
 // Offline shell for gate staff: network first, cached copy if the network is down or slow.
 // Firestore/Auth traffic is never touched (Firestore keeps its own offline cache).
-const CACHE = 'sundowner-v2';
-const SHELL = ['/', '/index.html', '/app.js', '/pass.js', '/config.js', '/style.css', '/manifest.json'];
+const CACHE = 'sundowner-v3';
+const SHELL = ['/', '/index.html', '/app.js', '/pass.js', '/config.js', '/style.css', '/manifest.json', '/book.html', '/book.js'];
 const ORIGINS = [self.location.origin, 'https://www.gstatic.com', 'https://cdnjs.cloudflare.com',
   'https://cdn.jsdelivr.net', 'https://fonts.googleapis.com', 'https://fonts.gstatic.com'];
 

@@ -12,8 +12,26 @@ service cloud.firestore {
       return request.auth.token.firebase.sign_in_provider == 'password'
         && request.auth.token.email in ['admin@diwali-sundowner-guest-manager.firebaseapp.com'];
     }
+    function isAdmin() {
+      return request.auth != null && (isGoogleOrganizer() || isPasswordAdmin());
+    }
     match /guests/{guestId} {
-      allow read, write: if request.auth != null && (isGoogleOrganizer() || isPasswordAdmin());
+      allow read, write: if isAdmin();
+    }
+    // Public booking requests (book.html): anyone may create a well-formed request; only admins may
+    // read, change or delete. Price (250) and max pax (10) must match config.js `booking`.
+    match /requests/{requestId} {
+      allow read, update, delete: if isAdmin();
+      allow create: if request.resource.data.keys().hasOnly(['name', 'phone', 'pax', 'amount', 'notes', 'utr', 'status', 'createdAt'])
+        && request.resource.data.keys().hasAll(['name', 'phone', 'pax', 'amount', 'status', 'createdAt'])
+        && request.resource.data.name is string && request.resource.data.name.size() >= 2 && request.resource.data.name.size() <= 80
+        && request.resource.data.phone is string && request.resource.data.phone.matches('^[0-9]{11,15}$')
+        && request.resource.data.pax is int && request.resource.data.pax >= 1 && request.resource.data.pax <= 10
+        && request.resource.data.amount == request.resource.data.pax * 250
+        && request.resource.data.get('notes', '') is string && request.resource.data.get('notes', '').size() <= 200
+        && request.resource.data.get('utr', '') is string && request.resource.data.get('utr', '').size() <= 40
+        && request.resource.data.status == 'new'
+        && request.resource.data.createdAt == request.time;
     }
   }
 }

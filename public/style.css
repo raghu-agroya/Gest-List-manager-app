@@ -33,3 +33,23 @@ button.danger{background:#7a2420;color:#fff}
 .spacer{flex:1}
 .gate-pay{display:flex;gap:8px;margin-top:8px}
 .gate-pay button{flex:1;padding:12px}
+
+.requests{margin-top:20px;display:grid;gap:10px}
+.requests h2{margin:0;font-size:18px;display:flex;gap:8px;align-items:center}
+.request{border-color:#936e3c}
+.guest-actions button.danger{background:#7a2420}
+body.book header{justify-content:center;text-align:center}
+.script{font-family:"Great Vibes",cursive;font-weight:400;font-size:46px;color:#ffd69a}
+.book-main{max-width:520px}
+.book-card{background:#1c2b30;border:1px solid #33474b;border-radius:14px;padding:20px}
+.book-card h2{font-size:18px;margin:16px 0 6px}
+.field-hint{color:#b9b9b5;font-size:12px;margin:4px 0}
+.total{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid #33474b;margin-top:14px;padding-top:12px}
+.total strong{color:#ffd69a;font-size:20px}
+.pay-btn{display:block;text-align:center;background:#f6ad69;color:#21180f;font-weight:800;text-decoration:none;border-radius:9px;padding:14px;margin:10px 0}
+.upi-qr{display:flex;justify-content:center;margin:8px 0}
+.upi-qr svg{background:#fff;border-radius:8px;width:180px;height:180px}
+@media(pointer:coarse){.upi-qr{display:none}}
+button.small{padding:4px 8px;font-size:12px}
+button.wide{width:100%;margin-top:12px;padding:14px}
+.error{color:#ff9a94;font-size:13px;min-height:1em}

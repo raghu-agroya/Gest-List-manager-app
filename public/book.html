@@ -1,0 +1,30 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#18262b"><title>Book | Diwali Sundowner</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Montserrat:wght@500;600;700;800&display=swap"><link rel="stylesheet" href="style.css"></head><body class="book">
+<header><div><small>DIWALI SUNDOWNER · 3RD EDITION</small><h1 class="script">Book your entry</h1><span>Sat 7 Nov 2026 · 5 PM onwards · Rooftop All Day Kitchen</span></div></header>
+<main class="book-main">
+<form id="bookForm" class="book-card" novalidate>
+  <label>Full name<input id="bName" required maxlength="80" autocomplete="name"></label>
+  <label>WhatsApp number<input id="bPhone" required inputmode="tel" autocomplete="tel" placeholder="98765 43210"><span class="field-hint">Your entry pass is sent here.</span></label>
+  <label>Number of people<input id="bPax" type="number" min="1" value="1" required></label>
+  <label>Notes (optional)<input id="bNotes" maxlength="200" placeholder="Names of others in your group, dietary needs…"></label>
+  <div class="total"><span>Total</span><strong id="bTotal">₹250</strong></div>
+  <section id="paySection" hidden>
+    <h2>Pay with UPI</h2>
+    <p class="field-hint">Pay the total, then enter the UPI transaction ID below. You can also submit now and pay later.</p>
+    <a id="payBtn" class="pay-btn" href="#">Pay <span id="payAmt">₹250</span> with UPI</a>
+    <div id="upiQr" class="upi-qr"></div>
+    <p class="field-hint">UPI ID: <b id="upiId"></b> <button type="button" id="copyUpi" class="secondary small">Copy</button></p>
+    <label>UPI transaction / reference ID (optional)<input id="bUtr" maxlength="40" autocomplete="off" placeholder="12-digit UTR from your UPI app"></label>
+  </section>
+  <p id="payLater" class="field-hint" hidden>Payment details will be shared with you on WhatsApp.</p>
+  <p id="bError" class="error" role="alert"></p>
+  <button type="submit" id="bSubmit" class="wide">Request booking</button>
+</form>
+<section id="done" class="book-card" hidden>
+  <h2>Booking request received 🪔</h2>
+  <p id="doneText"></p>
+  <p class="field-hint">Your reference: <b id="doneRef"></b>. Once we confirm your booking, we'll send your entry pass on WhatsApp.</p>
+  <button type="button" id="another" class="secondary">Make another booking</button>
+</section>
+<section id="closed" class="book-card" hidden><h2>Bookings are closed</h2><p>Please contact the organiser on WhatsApp.</p></section>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script><script type="module" src="book.js"></script></body></html>

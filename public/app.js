@@ -1,7 +1,7 @@
 import {firebaseConfig,allowedEmails,passwordAdmins,adminDomain} from './config.js';
 import {renderPass} from './pass.js';
 const $=id=>document.getElementById(id), escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let guests=[], cloud=false,db,auth,user,unsub,editing=null,stream=null,scanning=false;
+let guests=[], requests=[], cloud=false,db,auth,user,unsub,editing=null,stream=null,scanning=false;
 
 const byId=id=>guests.find(g=>g.id.toUpperCase()===id.toUpperCase());
 // Arrivals: `arrived` counts people in (0..pax). Older records only have checkedIn, so fall back to it.
@@ -73,7 +73,44 @@ $('deleteGuest').onclick=async()=>{const g=editing&&byId(editing);if(!g||!cloud)
   const {doc,deleteDoc}=await import('https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js');
   deleteDoc(doc(db,'guests',g.id)).catch(err=>alert(`Could not delete ${g.id}: ${err.message}`));
   $('editDialog').close();};
-$('addBtn').onclick=()=>edit(null);$('cancelEdit').onclick=()=>$('editDialog').close();$('guestForm').onsubmit=async e=>{e.preventDefault();let g={id:$('fId').value.trim().toUpperCase(),name:$('fName').value.trim(),phone:$('fPhone').value.replace(/\D/g,''),pax:Number($('fPax').value),type:$('fType').value,payment:$('fPayment').value,amount:Number($('fAmount').value),notes:$('fNotes').value,passSent:$('fSent').checked,method:$('fMethod').value};if(!editing&&byId(g.id))return alert('Pass ID already exists');const arrived=Math.min(paxOf(g),Math.max(0,Math.floor(Number($('fArrived').value)||0)));const prev=editing?byId(editing):{};let rec={...prev,...g};rec=rec.payment==='Paid'?{...rec,paidAt:prev.paidAt||new Date().toISOString()}:{...rec,paidAt:null};try{await persist(withArrivals(rec,arrived));$('editDialog').close()}catch(err){alert(err.message)}};
+$('addBtn').onclick=()=>edit(null);
+// ---- Public booking requests (from book.html): approve → becomes a guest with the next pass ID. ----
+const nextPassId=()=>'DS-'+String(Math.max(0,...guests.map(x=>Number(x.id.split('-')[1])||0))+1).padStart(3,'0');
+function renderRequests(){
+  const box=$('requests');box.hidden=!requests.length;if(!requests.length){box.innerHTML='';return}
+  const list=[...requests].sort((a,b)=>(a.createdAt?.seconds||0)-(b.createdAt?.seconds||0));
+  box.innerHTML=`<h2>Booking requests <span class="pill pending">${list.length}</span></h2>`+list.map(r=>`<article class="guest request">
+<div class="guest-top"><div><h3>${escape(r.name)}</h3><p>${escape(r.phone)} · ${escape(r.pax)} pax · ₹${escape(r.amount)}${r.createdAt?' · '+new Date(r.createdAt.seconds*1000).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'}):''}</p></div>
+<span class="pill ${r.utr?'paid':'pending'}">${r.utr?'UTR given':'Not paid yet'}</span></div>
+${r.utr?`<p>UPI ref: <b>${escape(r.utr)}</b> (check it in your UPI app before marking paid)</p>`:''}${r.notes?`<p>${escape(r.notes)}</p>`:''}
+<div class="guest-actions"><button data-req="paid" data-id="${escape(r._id)}">Approve · payment received</button><button data-req="unpaid" data-id="${escape(r._id)}">Approve · unpaid</button><button data-req="reject" data-id="${escape(r._id)}" class="danger">Reject</button></div></article>`).join('');
+}
+$('requests').onclick=async e=>{
+  const b=e.target.closest('button[data-req]');if(!b||!cloud)return;
+  const r=requests.find(x=>x._id===b.dataset.id);if(!r)return;
+  const {doc,runTransaction,updateDoc}=await import('https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js');
+  b.disabled=true;
+  try{
+    if(b.dataset.req==='reject'){
+      if(!confirm(`Reject booking from ${r.name}?`)){b.disabled=false;return}
+      await updateDoc(doc(db,'requests',r._id),{status:'rejected',handledBy:user.email});return;
+    }
+    let g={name:r.name,phone:r.phone,pax:r.pax,type:'General',payment:'Pending',amount:r.amount,
+      notes:[r.notes,r.utr&&'UTR '+r.utr].filter(Boolean).join(' · '),passSent:false,checkedIn:false,arrived:0,requestId:r._id};
+    if(b.dataset.req==='paid')g=markPaid(g,'UPI');
+    // Transaction so two admins approving at once can't hand out the same pass ID.
+    const id=await runTransaction(db,async t=>{
+      let n=Number(nextPassId().split('-')[1]),ref;
+      for(;;n++){ref=doc(db,'guests','DS-'+String(n).padStart(3,'0'));if(!(await t.get(ref)).exists())break}
+      t.set(ref,{...g,id:ref.id});
+      t.update(doc(db,'requests',r._id),{status:'approved',guestId:ref.id,handledBy:user.email});
+      return ref.id;
+    });
+    if(confirm(`${r.name} added as ${id}. Open their pass to send it now?`)){const added=byId(id);if(added)showPass(added)}
+  }catch(err){alert('Could not update request: '+err.message);b.disabled=false}
+};
+$('bookLinkBtn').onclick=async()=>{const link=new URL('book.html',location.href).href;
+  try{await navigator.clipboard.writeText(link);alert('Booking link copied:\n'+link)}catch{prompt('Copy the booking link:',link)}};$('cancelEdit').onclick=()=>$('editDialog').close();$('guestForm').onsubmit=async e=>{e.preventDefault();let g={id:$('fId').value.trim().toUpperCase(),name:$('fName').value.trim(),phone:$('fPhone').value.replace(/\D/g,''),pax:Number($('fPax').value),type:$('fType').value,payment:$('fPayment').value,amount:Number($('fAmount').value),notes:$('fNotes').value,passSent:$('fSent').checked,method:$('fMethod').value};if(!editing&&byId(g.id))return alert('Pass ID already exists');const arrived=Math.min(paxOf(g),Math.max(0,Math.floor(Number($('fArrived').value)||0)));const prev=editing?byId(editing):{};let rec={...prev,...g};rec=rec.payment==='Paid'?{...rec,paidAt:prev.paidAt||new Date().toISOString()}:{...rec,paidAt:null};try{await persist(withArrivals(rec,arrived));$('editDialog').close()}catch(err){alert(err.message)}};
 let passFile=null,passUrl=null,passGuest=null;
 async function showPass(g){
   passFile=null;passGuest=g;if(passUrl)URL.revokeObjectURL(passUrl);passUrl=null;
@@ -219,13 +256,13 @@ $('scanNext').onclick=startScan;
 $('closeScan').onclick=()=>$('scanDialog').close();$('scanDialog').addEventListener('close',stopScan);
 const signInProvider=u=>u.providerData?.[0]?.providerId;
 const isAllowed=u=>signInProvider(u)==='password'?passwordAdmins.includes(u.email):(u.emailVerified&&allowedEmails.includes(u.email));
-async function initializeFirebase(){if(!firebaseConfig.apiKey)return;try{const [{initializeApp},{getAuth,GoogleAuthProvider,signInWithPopup,signInWithEmailAndPassword,signOut,onAuthStateChanged},{initializeFirestore,getFirestore,persistentLocalCache,persistentMultipleTabManager,collection,onSnapshot}]=await Promise.all([import('https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js'),import('https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js'),import('https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js')]);const app=initializeApp(firebaseConfig);auth=getAuth(app);try{db=initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})})}catch{db=getFirestore(app)}$('authBtn').onclick=async()=>{try{if(auth.currentUser)await signOut(auth);else await signInWithPopup(auth,new GoogleAuthProvider())}catch(e){alert(e.message)}};
+async function initializeFirebase(){if(!firebaseConfig.apiKey)return;try{const [{initializeApp},{getAuth,GoogleAuthProvider,signInWithPopup,signInWithEmailAndPassword,signOut,onAuthStateChanged},{initializeFirestore,getFirestore,persistentLocalCache,persistentMultipleTabManager,collection,onSnapshot,query,where}]=await Promise.all([import('https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js'),import('https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js'),import('https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js')]);const app=initializeApp(firebaseConfig);auth=getAuth(app);try{db=initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})})}catch{db=getFirestore(app)}$('authBtn').onclick=async()=>{try{if(auth.currentUser)await signOut(auth);else await signInWithPopup(auth,new GoogleAuthProvider())}catch(e){alert(e.message)}};
 $('adminBtn').onclick=()=>{$('adminError').textContent='';$('adminDialog').showModal()};
 $('adminCancel').onclick=()=>$('adminDialog').close();
 $('adminForm').onsubmit=async e=>{e.preventDefault();$('adminError').textContent='Signing in…';
   const login=$('aEmail').value.trim().toLowerCase();
   try{await signInWithEmailAndPassword(auth,login.includes('@')?login:`${login}@${adminDomain}`,$('aPassword').value);$('aPassword').value='';$('adminDialog').close()}
   catch(err){$('adminError').textContent=['auth/invalid-credential','auth/wrong-password','auth/user-not-found','auth/invalid-email'].includes(err.code)?'Wrong email or password.':err.code==='auth/too-many-requests'?'Too many attempts. Try again later.':err.message}};
-onAuthStateChanged(auth,u=>{unsub?.();unsub=null;user=u;cloud=!!u&&isAllowed(u);$('authBtn').textContent=u?'Sign out':'Sign in with Google';$('adminBtn').hidden=!!u;$('importLabel').hidden=!cloud;if(!cloud){guests=[];render();$('setup').textContent=u?`${u.email} is not authorized. Sign out and use the organizer Google account or Admin login.`:'Sign in with Google (organizer) or use Admin login to access guest records.';return}$('setup').textContent='Connecting… · '+u.email;unsub=onSnapshot(collection(db,'guests'),{includeMetadataChanges:true},snap=>{guests=snap.docs.map(d=>d.data());const waiting=snap.docs.filter(d=>d.metadata.hasPendingWrites).length;$('setup').textContent=(snap.metadata.fromCache?'⚠ Offline: showing the copy saved on this device':'Cloud sync active')+(waiting?` · ${waiting} change${waiting>1?'s':''} waiting to upload`:'')+' · '+u.email;$('setup').classList.toggle('offline',snap.metadata.fromCache||waiting>0);render()},e=>alert('Firestore: '+e.message))})}catch(e){$('setup').textContent='Firebase setup error: '+e.message}}
+onAuthStateChanged(auth,u=>{unsub?.();unsub=null;user=u;cloud=!!u&&isAllowed(u);$('authBtn').textContent=u?'Sign out':'Sign in with Google';$('adminBtn').hidden=!!u;$('importLabel').hidden=!cloud;$('bookLinkBtn').hidden=!cloud;if(!cloud){requests=[];renderRequests()}if(!cloud){guests=[];render();$('setup').textContent=u?`${u.email} is not authorized. Sign out and use the organizer Google account or Admin login.`:'Sign in with Google (organizer) or use Admin login to access guest records.';return}$('setup').textContent='Connecting… · '+u.email;const stopRequests=onSnapshot(query(collection(db,'requests'),where('status','==','new')),snap=>{requests=snap.docs.map(d=>({...d.data(),_id:d.id}));renderRequests()},e=>console.warn('requests:',e.message));const stopGuests=onSnapshot(collection(db,'guests'),{includeMetadataChanges:true},snap=>{guests=snap.docs.map(d=>d.data());const waiting=snap.docs.filter(d=>d.metadata.hasPendingWrites).length;$('setup').textContent=(snap.metadata.fromCache?'⚠ Offline: showing the copy saved on this device':'Cloud sync active')+(waiting?` · ${waiting} change${waiting>1?'s':''} waiting to upload`:'')+' · '+u.email;$('setup').classList.toggle('offline',snap.metadata.fromCache||waiting>0);render()},e=>alert('Firestore: '+e.message));unsub=()=>{stopGuests();stopRequests()}})}catch(e){$('setup').textContent='Firebase setup error: '+e.message}}
 render();initializeFirebase();
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
