@@ -53,3 +53,15 @@ body.book header{justify-content:center;text-align:center}
 button.small{padding:4px 8px;font-size:12px}
 button.wide{width:100%;margin-top:12px;padding:14px}
 .error{color:#ff9a94;font-size:13px;min-height:1em}
+
+.method-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.method-grid button{padding:16px;font-size:18px}
+#fHistory{margin:10px 0;font-size:13px;color:#c7d2d2}
+#fHistory summary{cursor:pointer;font-weight:700;color:#fff}
+#fHistory ol{margin:8px 0 0;padding-left:18px;max-height:180px;overflow:auto}
+#fHistory li{margin:3px 0}
+@media(pointer:coarse){
+  .guest-actions button{font-size:14px;padding:11px 12px}
+  .bottom-actions button,.toolbar button,.toolbar select,.toolbar input{padding:13px;font-size:15px}
+  .chip{padding:10px 14px}
+}

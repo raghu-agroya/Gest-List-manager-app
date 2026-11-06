@@ -202,7 +202,7 @@ function drawCard(ctx, g) {
   // QR code
   const bx = 357, by = 742, bs = 366;
   ctx.fillStyle = '#fffdf8'; rr(ctx, bx, by, bs, bs, 24); ctx.fill();
-  const qr = qrcode(0, 'M'); qr.addData(String(g.id)); qr.make();
+  const qr = qrcode(0, 'M'); qr.addData(g.token ? `${g.id}.${g.token}` : String(g.id)); qr.make();
   const n = qr.getModuleCount(), cell = Math.floor((bs - 44) / n), off = Math.floor((bs - cell * n) / 2);
   ctx.fillStyle = '#111111';
   for (let r = 0; r < n; r++) for (let c = 0; c < n; c++)

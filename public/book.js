@@ -1,6 +1,6 @@
 // Public booking page. Anyone with the link can submit a request; firestore.rules only allows
 // creating a well-formed document in `requests` (no reads), and the organiser approves it in the app.
-import {firebaseConfig, booking} from './config.js';
+import {firebaseConfig, booking, appCheckSiteKey} from './config.js';
 
 const FS = 'https://www.gstatic.com/firebasejs/11.6.0/';
 const $ = id => document.getElementById(id);
@@ -37,7 +37,12 @@ async function firestore() {
   if (db) return;
   const [{initializeApp}, fs] = await Promise.all([import(FS + 'firebase-app.js'), import(FS + 'firebase-firestore.js')]);
   ({addDoc, collection, serverTimestamp} = fs);
-  db = fs.getFirestore(initializeApp(firebaseConfig));
+  const app = initializeApp(firebaseConfig);
+  if (appCheckSiteKey) {
+    const {initializeAppCheck, ReCaptchaV3Provider} = await import(FS + 'firebase-app-check.js');
+    initializeAppCheck(app, {provider: new ReCaptchaV3Provider(appCheckSiteKey), isTokenAutoRefreshEnabled: true});
+  }
+  db = fs.getFirestore(app);
 }
 
 $('bookForm').onsubmit = async e => {

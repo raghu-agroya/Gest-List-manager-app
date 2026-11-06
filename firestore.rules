@@ -15,8 +15,19 @@ service cloud.firestore {
     function isAdmin() {
       return request.auth != null && (isGoogleOrganizer() || isPasswordAdmin());
     }
+    function validGuest(guestId) {
+      let d = request.resource.data;
+      return d.id == guestId
+        && d.name is string && d.name.size() >= 1 && d.name.size() <= 120
+        && d.get('pax', 1) is number && d.get('pax', 1) >= 1 && d.get('pax', 1) <= 100
+        && d.get('amount', 0) is number && d.get('amount', 0) >= 0
+        && d.get('payment', 'Pending') is string
+        && d.get('arrived', 0) is number && d.get('arrived', 0) >= 0
+        && d.get('history', []) is list && d.get('history', []).size() <= 60;
+    }
     match /guests/{guestId} {
-      allow read, write: if isAdmin();
+      allow read, delete: if isAdmin();
+      allow create, update: if isAdmin() && validGuest(guestId);
     }
     // Public booking requests (book.html): anyone may create a well-formed request; only admins may
     // read, change or delete. Price (250) and max pax (10) must match config.js `booking`.
