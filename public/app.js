@@ -11,8 +11,24 @@ const withArrivals=(g,n)=>({...g,arrived:n,checkedIn:n>0,
   checkedInAt:n>0?(g.checkedInAt||new Date().toISOString()):null,
   checkedInBy:n>0?(g.checkedInBy||user?.email||null):null});
 const clock=iso=>iso?new Date(iso).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit'}):'';
+// Payment: record method + time when a guest becomes Paid.
+const markPaid=(g,method)=>({...g,payment:'Paid',method:method||g.method||'',paidAt:g.paidAt||new Date().toISOString()});
+function renderDash(){
+  const rupee=n=>'₹'+n.toLocaleString('en-IN'), pending=guests.filter(g=>g.payment==='Pending');
+  const due=pending.reduce((s,g)=>s+Number(g.amount||0),0), unsent=guests.filter(g=>!g.passSent).length;
+  const notIn=guests.reduce((s,g)=>s+Math.max(0,paxOf(g)-arrivedOf(g)),0);
+  const byMethod={};for(const g of guests)if(g.payment==='Paid'){const m=g.method||'Not recorded';byMethod[m]=(byMethod[m]||0)+Number(g.amount||0)}
+  const chip=(label,value,filter)=>`<button class="chip" ${filter?`data-filter="${filter}"`:'disabled'}><small>${label}</small><b>${value}</b></button>`;
+  $('dash').innerHTML=guests.length?[
+    chip('Still to collect',`${rupee(due)} · ${pending.length}`,'Pending'),
+    chip('Passes not sent',unsent,'unsent'),
+    chip('Yet to arrive',notIn+' pax','notchecked'),
+    ...Object.entries(byMethod).map(([m,v])=>chip('Paid · '+escape(m),rupee(v))),
+  ].join(''):'';
+}
+$('dash').onclick=e=>{const f=e.target.closest('[data-filter]')?.dataset.filter;if(!f)return;$('filter').value=$('filter').value===f?'all':f;render()};
 const sort=()=>guests.sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
-function render(){sort();let paid=guests.filter(g=>g.payment==='Paid').length, checked=guests.filter(g=>g.checkedIn).length, collected=guests.filter(g=>g.payment==='Paid').reduce((s,g)=>s+Number(g.amount||0),0);$('stats').innerHTML=[['Total guests',guests.length],['Paid',paid],['Pending',guests.filter(g=>g.payment==='Pending').length],['Collected','₹'+collected.toLocaleString('en-IN')],['Arrived',guests.reduce((s,g)=>s+arrivedOf(g),0)+' / '+guests.reduce((s,g)=>s+paxOf(g),0)]].map(([a,b])=>`<div class="stat"><small>${a}</small><strong>${b}</strong></div>`).join('');let q=$('search').value.toLowerCase(),f=$('filter').value;let arr=guests.filter(g=>(g.name+' '+g.id+' '+g.phone+' '+g.notes).toLowerCase().includes(q)&&(f==='all'||g.payment===f||(f==='checked'&&arrivedOf(g)>0)||(f==='notchecked'&&arrivedOf(g)===0)));$('guestList').innerHTML=arr.map(g=>`<article class="guest"><div class="guest-top"><div><h3>${escape(g.name)}</h3><p>${escape(g.id)} · ${escape(g.phone)} · ${escape(g.notes)}</p></div><span class="pill ${g.payment==='Paid'?'paid':'pending'}">${escape(g.payment)}</span></div><p>${escape(g.pax)} pax · ₹${escape(g.amount)} · Pass ${g.passSent?'sent':'not sent'} · ${arrivedOf(g)?`✓ ${arrivedOf(g)}/${paxOf(g)} arrived${g.checkedInAt?' · '+clock(g.checkedInAt):''}`:'Not arrived'}</p><div class="guest-actions"><button data-act="edit" data-id="${escape(g.id)}">Edit</button><button data-act="pay" data-id="${escape(g.id)}">${g.payment==='Paid'?'Mark pending':'Mark paid'}</button><button data-act="pass" data-id="${escape(g.id)}">QR Pass</button><button data-act="wa" data-id="${escape(g.id)}">WhatsApp</button><button data-act="check" data-id="${escape(g.id)}">${arrivedOf(g)>=paxOf(g)?'Arrived ✓':'Check in'}</button></div></article>`).join('')||'<p>No matching guests.</p>';if($('scanDialog').open)renderGate();}
+function render(){sort();renderDash();let paid=guests.filter(g=>g.payment==='Paid').length, checked=guests.filter(g=>g.checkedIn).length, collected=guests.filter(g=>g.payment==='Paid').reduce((s,g)=>s+Number(g.amount||0),0);$('stats').innerHTML=[['Total guests',guests.length],['Paid',paid],['Pending',guests.filter(g=>g.payment==='Pending').length],['Collected','₹'+collected.toLocaleString('en-IN')],['Arrived',guests.reduce((s,g)=>s+arrivedOf(g),0)+' / '+guests.reduce((s,g)=>s+paxOf(g),0)]].map(([a,b])=>`<div class="stat"><small>${a}</small><strong>${b}</strong></div>`).join('');let q=$('search').value.toLowerCase(),f=$('filter').value;let arr=guests.filter(g=>(g.name+' '+g.id+' '+g.phone+' '+g.notes).toLowerCase().includes(q)&&(f==='all'||g.payment===f||(f==='checked'&&arrivedOf(g)>0)||(f==='notchecked'&&arrivedOf(g)===0)||(f==='unsent'&&!g.passSent)));$('guestList').innerHTML=arr.map(g=>`<article class="guest"><div class="guest-top"><div><h3>${escape(g.name)}</h3><p>${escape(g.id)} · ${escape(g.phone)} · ${escape(g.notes)}</p></div><span class="pill ${g.payment==='Paid'?'paid':'pending'}">${escape(g.payment)}</span></div><p>${escape(g.pax)} pax · ₹${escape(g.amount)}${g.payment==='Paid'&&g.method?' '+escape(g.method):''} · Pass ${g.passSent?'sent':'not sent'} · ${arrivedOf(g)?`✓ ${arrivedOf(g)}/${paxOf(g)} arrived${g.checkedInAt?' · '+clock(g.checkedInAt):''}`:'Not arrived'}</p><div class="guest-actions"><button data-act="edit" data-id="${escape(g.id)}">Edit</button><button data-act="pay" data-id="${escape(g.id)}">${g.payment==='Paid'?'Mark pending':'Mark paid'}</button><button data-act="pass" data-id="${escape(g.id)}">QR Pass</button><button data-act="wa" data-id="${escape(g.id)}">WhatsApp</button><button data-act="check" data-id="${escape(g.id)}">${arrivedOf(g)>=paxOf(g)?'Arrived ✓':'Check in'}</button></div></article>`).join('')||'<p>No matching guests.</p>';if($('scanDialog').open)renderGate();}
 async function persist(g) {
   if (!cloud) throw new Error(user
     ? `${user.email} is not authorized. Sign out, then use "Sign in with Google" (organizer) or "Admin login".`
@@ -49,10 +65,15 @@ $('guestFile').onchange = async event => {
   }
 };
 
-$('guestList').onclick=async e=>{const b=e.target.closest('button[data-act]');if(!b)return;let g=byId(b.dataset.id);if(!g)return;try{if(b.dataset.act==='edit')edit(g);if(b.dataset.act==='pay')await persist({...g,payment:g.payment==='Paid'?'Pending':'Paid'});if(b.dataset.act==='check')openGate(g);if(b.dataset.act==='pass')showPass(g);if(b.dataset.act==='wa')showPass(g)}catch(err){alert(err.message)}};
+$('guestList').onclick=async e=>{const b=e.target.closest('button[data-act]');if(!b)return;let g=byId(b.dataset.id);if(!g)return;try{if(b.dataset.act==='edit')edit(g);if(b.dataset.act==='pay')await persist(g.payment==='Paid'?{...g,payment:'Pending',method:'',paidAt:null}:markPaid(g));if(b.dataset.act==='check')openGate(g);if(b.dataset.act==='pass')showPass(g);if(b.dataset.act==='wa')showPass(g)}catch(err){alert(err.message)}};
 const waMessage=g=>`Hi ${g.name}, your Diwali Sundowner – 3rd Edition entry pass (${g.id}) is ${g.payment==='Paid'?'confirmed':'registered'}. Saturday, 7 Nov 2026, 5 PM onwards, Rooftop All Day Kitchen. Please present your pass at entry.`;
-function edit(g){editing=g?.id||null;$('formTitle').textContent=g?'Edit guest':'Add guest';$('fId').value=g?.id||'DS-'+String(Math.max(0,...guests.map(x=>Number(x.id.split('-')[1])||0))+1).padStart(3,'0');$('fId').readOnly=!!g;for(let [field,key] of [['fName','name'],['fPhone','phone'],['fPax','pax'],['fType','type'],['fPayment','payment'],['fAmount','amount'],['fNotes','notes']])$(field).value=g?.[key]??({fPax:1,fAmount:250,fType:'General',fPayment:'Pending'}[field]??'');$('fSent').checked=!!g?.passSent;$('fArrived').value=g?arrivedOf(g):0;$('editDialog').showModal()}
-$('addBtn').onclick=()=>edit(null);$('cancelEdit').onclick=()=>$('editDialog').close();$('guestForm').onsubmit=async e=>{e.preventDefault();let g={id:$('fId').value.trim().toUpperCase(),name:$('fName').value.trim(),phone:$('fPhone').value.replace(/\D/g,''),pax:Number($('fPax').value),type:$('fType').value,payment:$('fPayment').value,amount:Number($('fAmount').value),notes:$('fNotes').value,passSent:$('fSent').checked};if(!editing&&byId(g.id))return alert('Pass ID already exists');const arrived=Math.min(paxOf(g),Math.max(0,Math.floor(Number($('fArrived').value)||0)));try{await persist(withArrivals({...(editing?byId(editing):{}),...g},arrived));$('editDialog').close()}catch(err){alert(err.message)}};
+function edit(g){editing=g?.id||null;$('formTitle').textContent=g?'Edit guest':'Add guest';$('fId').value=g?.id||'DS-'+String(Math.max(0,...guests.map(x=>Number(x.id.split('-')[1])||0))+1).padStart(3,'0');$('fId').readOnly=!!g;for(let [field,key] of [['fName','name'],['fPhone','phone'],['fPax','pax'],['fType','type'],['fPayment','payment'],['fAmount','amount'],['fNotes','notes']])$(field).value=g?.[key]??({fPax:1,fAmount:250,fType:'General',fPayment:'Pending'}[field]??'');$('fMethod').value=g?.method||'';$('deleteGuest').hidden=!g;$('fSent').checked=!!g?.passSent;$('fArrived').value=g?arrivedOf(g):0;$('editDialog').showModal()}
+$('deleteGuest').onclick=async()=>{const g=editing&&byId(editing);if(!g||!cloud)return;
+  if(prompt(`Delete ${g.name} (${g.id}) permanently? Type the pass ID to confirm.`)?.trim().toUpperCase()!==g.id.toUpperCase())return;
+  const {doc,deleteDoc}=await import('https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js');
+  deleteDoc(doc(db,'guests',g.id)).catch(err=>alert(`Could not delete ${g.id}: ${err.message}`));
+  $('editDialog').close();};
+$('addBtn').onclick=()=>edit(null);$('cancelEdit').onclick=()=>$('editDialog').close();$('guestForm').onsubmit=async e=>{e.preventDefault();let g={id:$('fId').value.trim().toUpperCase(),name:$('fName').value.trim(),phone:$('fPhone').value.replace(/\D/g,''),pax:Number($('fPax').value),type:$('fType').value,payment:$('fPayment').value,amount:Number($('fAmount').value),notes:$('fNotes').value,passSent:$('fSent').checked,method:$('fMethod').value};if(!editing&&byId(g.id))return alert('Pass ID already exists');const arrived=Math.min(paxOf(g),Math.max(0,Math.floor(Number($('fArrived').value)||0)));const prev=editing?byId(editing):{};let rec={...prev,...g};rec=rec.payment==='Paid'?{...rec,paidAt:prev.paidAt||new Date().toISOString()}:{...rec,paidAt:null};try{await persist(withArrivals(rec,arrived));$('editDialog').close()}catch(err){alert(err.message)}};
 let passFile=null,passUrl=null,passGuest=null;
 async function showPass(g){
   passFile=null;passGuest=g;if(passUrl)URL.revokeObjectURL(passUrl);passUrl=null;
@@ -88,7 +109,7 @@ $('waPass').onclick=async()=>{
   const latest=byId(g.id)||g;
   if(!latest.passSent&&confirm(`Mark ${g.name}'s pass as sent?`)){try{await persist({...latest,passSent:true})}catch(err){alert(err.message)}}
 };$('search').oninput=render;$('filter').onchange=render;
-$('exportBtn').onclick=()=>{let columns=['id','name','phone','pax','type','payment','amount','passSent','checkedIn','arrived','checkedInAt','checkedInBy','notes'];let csv=[columns.join(','),...guests.map(g=>columns.map(k=>'"'+String(k==='arrived'?arrivedOf(g):g[k]??'').replaceAll('"','""')+'"').join(','))].join('\r\n');let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='diwali-guests.csv';a.click();URL.revokeObjectURL(a.href)};
+$('exportBtn').onclick=()=>{let columns=['id','name','phone','pax','type','payment','amount','passSent','checkedIn','arrived','checkedInAt','checkedInBy','method','paidAt','notes'];let csv=[columns.join(','),...guests.map(g=>columns.map(k=>'"'+String(k==='arrived'?arrivedOf(g):g[k]??'').replaceAll('"','""')+'"').join(','))].join('\r\n');let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='diwali-guests.csv';a.click();URL.revokeObjectURL(a.href)};
 // ---- Gate mode: scan → big colour-coded result → admit N people, no extra confirm dialogs. ----
 let gate={id:null,missing:null,count:1,admitted:0},audio=null;
 function signal(tone){
@@ -122,7 +143,7 @@ function renderGate(){
 <h3>${escape(g.name)}</h3>
 <p>${escape(g.id)} · ${escape(g.type||'General')} · ${g.payment==='Pending'?'<b>₹'+escape(g.amount)+' due</b>':escape(g.payment)}${g.notes?' · '+escape(g.notes):''}</p>
 <p class="gate-count">${arr} / ${pax} arrived${g.checkedInAt?` · first in ${clock(g.checkedInAt)}`:''}${g.checkedInBy?` by ${escape(g.checkedInBy)}`:''}</p>
-${left>0?`<div class="gate-admit"><button data-gate="minus" class="secondary" aria-label="One fewer">−</button><strong>${gate.count}</strong><button data-gate="plus" class="secondary" aria-label="One more">+</button><button data-gate="admit">Admit ${gate.count}</button></div>${g.payment==='Pending'?`<button data-gate="payadmit" class="wide">Mark paid & admit ${gate.count}</button>`:''}`:''}
+${left>0?`<div class="gate-admit"><button data-gate="minus" class="secondary" aria-label="One fewer">−</button><strong>${gate.count}</strong><button data-gate="plus" class="secondary" aria-label="One more">+</button><button data-gate="admit">Admit ${gate.count}</button></div>${g.payment==='Pending'?`<div class="gate-pay"><button data-gate="payadmit" data-method="UPI">Paid UPI & admit</button><button data-gate="payadmit" data-method="Cash">Paid cash & admit</button></div>`:''}`:''}
 ${arr>0?'<button data-gate="undo" class="secondary wide">Undo arrivals</button>':''}`;
 }
 function showGate(code,feedback=true){
@@ -136,14 +157,14 @@ function openGate(g){
   stopScan();$('scanNext').hidden=false;showGate(g.id,false);
 }
 $('gateCard').onclick=async e=>{
-  const act=e.target.closest('[data-gate]')?.dataset.gate,g=gate.id&&byId(gate.id);if(!act||!g)return;
+  const btn=e.target.closest('[data-gate]'),act=btn?.dataset.gate,g=gate.id&&byId(gate.id);if(!act||!g)return;
   const left=paxOf(g)-arrivedOf(g);
   if(act==='minus'){gate.count=Math.max(1,gate.count-1);return renderGate()}
   if(act==='plus'){gate.count=Math.min(left,gate.count+1);return renderGate()}
   try{
     if((act==='admit'||act==='payadmit')&&left>0){
       const n=Math.min(gate.count,left);gate.admitted=n;
-      await persist(withArrivals(act==='payadmit'?{...g,payment:'Paid'}:g,arrivedOf(g)+n));
+      await persist(withArrivals(act==='payadmit'?markPaid(g,btn.dataset.method):g,arrivedOf(g)+n));
       signal('ok');
     }
     if(act==='undo'&&confirm(`Reset arrivals for ${g.name} to 0?`)){gate.admitted=0;await persist(withArrivals(g,0))}

@@ -22,3 +22,14 @@
 .gate-manual{display:flex;gap:8px}
 .gate-manual input{flex:1;min-width:0}
 #scanResult{min-height:1em}
+.dash{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.dash:empty{display:none}
+.chip{background:#1c2b30;border:1px solid #33474b;color:#fff;font-weight:500;display:flex;flex-direction:column;align-items:flex-start;padding:8px 12px;border-radius:10px}
+.chip small{letter-spacing:0;color:#b9b9b5;font-size:11px}
+.chip b{color:#ffd69a}
+.chip:disabled{opacity:1;cursor:default}
+.chip[data-filter]:hover{border-color:#f6ad69}
+button.danger{background:#7a2420;color:#fff}
+.spacer{flex:1}
+.gate-pay{display:flex;gap:8px;margin-top:8px}
+.gate-pay button{flex:1;padding:12px}
