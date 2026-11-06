@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Organizer: Google sign-in with a verified email.
+    function isGoogleOrganizer() {
+      return request.auth.token.firebase.sign_in_provider == 'google.com'
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in ['raghunandanagroya@gmail.com'];
+    }
+    // Default admin: email + password account created in Firebase Console.
+    function isPasswordAdmin() {
+      return request.auth.token.firebase.sign_in_provider == 'password'
+        && request.auth.token.email in ['admin@diwali-sundowner-guest-manager.firebaseapp.com'];
+    }
+    match /guests/{guestId} {
+      allow read, write: if request.auth != null && (isGoogleOrganizer() || isPasswordAdmin());
+    }
+  }
+}
